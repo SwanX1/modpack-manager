@@ -21,6 +21,7 @@ STYLE = Style.from_dict({
   "dialog frame-label": "bg:#ffffff #000000",
   "dialog.body": "bg:#111111 #ffffff",
   "dialog shadow": "bg:#888888",
+  "text-area": "bg:#ffffff #000000",
 })
 
 def hash_file_sha1(file):
@@ -303,8 +304,10 @@ async def package():
     spec = pathspec.PathSpec.from_lines("gitwildmatch", lines)
 
     current_overrides = [
-        str(file.relative_to(".")) for file in current_overrides if not spec.match_file(str(file))
+      file.relative_to(".") for file in current_overrides if not spec.match_file(str(file))
     ]
+
+  current_overrides = [str(file) for file in current_overrides]
 
   if not await scrollable_text_dialog(
     title=TITLE,
