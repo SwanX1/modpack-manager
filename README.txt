@@ -1,0 +1,1 @@
+modpack-manager is a dumb ass utility for managing modpack development to be used in junction with prismlauncher and git
