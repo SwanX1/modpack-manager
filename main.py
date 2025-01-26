@@ -3,15 +3,12 @@ import hashlib
 import os
 import time
 from prompt_toolkit.styles import Style
-from prompt_toolkit.shortcuts import radiolist_dialog
-from prompt_toolkit.shortcuts import message_dialog
-from prompt_toolkit.shortcuts import yes_no_dialog
-from prompt_toolkit.shortcuts import progress_dialog
+from prompt_toolkit.shortcuts import radiolist_dialog, message_dialog, yes_no_dialog, progress_dialog, input_dialog
 import toml
 import urllib.request as request
 
-# Custom color scheme.
-style = Style.from_dict({
+TITLE="Modpack Manager"
+STYLE = Style.from_dict({
   "dialog": "bg:#000000",
   "dialog frame-label": "bg:#ffffff #000000",
   "dialog.body": "bg:#000000 #ffffff",
@@ -36,16 +33,16 @@ def hash_file_sha1(file):
 
 async def message(text):
   await message_dialog(
-    title="Modpack Manager",
+    title=TITLE,
     text=text,
-    style=style
+    style=STYLE
   ).run_async()
 
 async def confirm(text):
   return await yes_no_dialog(
-    title="Modpack Manager",
+    title=TITLE,
     text=text,
-    style=style,
+    style=STYLE,
   ).run_async()
 
 async def main():
@@ -54,10 +51,11 @@ async def main():
       values=[
         ("download", "Download mods from index files"),
         ("package", "Package mods into a modpack"),
+        ("chdir", "Change working directory"),
       ],
-      title="Modpack Manager",
-      text="Please select a tool:",
-      style=style
+      title=TITLE,
+      text=f"Current working directory: {os.getcwd()}\nPlease select a tool:",
+      style=STYLE
     ).run_async()
 
     if result is None:
@@ -67,6 +65,8 @@ async def main():
       await download()
     elif result == "package":
       await package()
+    elif result == "chdir":
+      await chdir()
 
 complete_log = ""
 async def download():
@@ -79,10 +79,10 @@ async def download():
     return False
   
   await progress_dialog(
-    title="Modpack Manager",
+    title=TITLE,
     text="Deleting .jar files in the mods directory and redownloading from index files...",
     run_callback=download_worker,
-    style=style
+    style=STYLE
   ).run_async()
 
   global complete_log
@@ -169,6 +169,23 @@ def download_worker(set_percentage, log_text):
 
 async def package():
   return False
+
+async def chdir():
+  new_dir = await input_dialog(
+    title=TITLE,
+    text=f"Current working directory: {os.getcwd()}\nEnter the new directory:",
+    style=STYLE
+  ).run_async()
+
+  if new_dir is None:
+    return
+  
+  if not os.path.exists(new_dir):
+    await message(f"The directory \"{new_dir}\" does not exist.")
+    return
+  
+  print(f"Changing directory to {new_dir}")
+  os.chdir(new_dir)
 
 if __name__ == "__main__":
   asyncio.run(main())
