@@ -60,7 +60,14 @@ jobs:
       run: ls -R ./dist/
 
     - uses: ncipollo/release-action@v1
+      if: matrix.os == 'ubuntu-latest'
       with:
-        artifacts: "dist/modpack_manager,dist/modpack_manager.exe"
+        artifacts: "dist/modpack_manager"
+        omitBody: true
+        allowUpdates: true
+    - uses: ncipollo/release-action@v1
+      if: matrix.os == 'windows-latest'
+      with:
+        artifacts: "dist/modpack_manager.exe"
         omitBody: true
         allowUpdates: true
