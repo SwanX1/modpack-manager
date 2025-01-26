@@ -3,3 +3,4 @@ build
 dist
 mods
 *.spec
+src/__pycache__
