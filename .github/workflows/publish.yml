@@ -63,3 +63,4 @@ jobs:
       with:
         artifacts: "dist/modpack_manager,dist/modpack_manager.exe"
         omitBody: true
+        allowUpdates: true
