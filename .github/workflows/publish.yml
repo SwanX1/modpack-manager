@@ -16,7 +16,7 @@ jobs:
         os: ['windows-latest', 'ubuntu-latest']
 
     env:
-      MAIN_PY_FILE: 'main.py'  # Define the path to your main.py file here
+      MAIN_PY_FILE: 'modpack_manager.py'  # Define the path to your main.py file here
 
     steps:
     - name: Checkout code
