@@ -265,36 +265,44 @@ class CFManifest:
       "version": self.version,
     }
 
-async def package():
+# Returns: if operation failed, if None, user cancelled
+async def package(auto: bool = False) -> bool | None:
   if not os.path.exists("mods/.index"):
-    await message("The mods/.index directory does not exist.\nPlease make sure you're running this from the correct directory.")
+    if not auto:
+      await message("The mods/.index directory does not exist.\nPlease make sure you're running this from the correct directory.")
+    else:
+      print("The mods/.index directory does not exist.\nPlease make sure you're running this from the correct directory.")
     return True
   
   manifest = CFManifest()
   manifest.infer()
 
-  manifest_entered = await multi_input_dialog(
-    title=TITLE,
-    text="Please enter the following information:",
-    fields=[
-      FieldDef(key="name", name="Name", default=manifest.name),
-      FieldDef(key="version", name="Version", default=manifest.version),
-      FieldDef(key="author", name="Author", default=manifest.author),
-      FieldDef(key="mc_version", name="Minecraft Version", default=manifest.mc_version),
-      FieldDef(key="loader_id", name="Loader", default=manifest.loader_id),
-    ],
-    style=STYLE,
-  ).run_async()
+  if not auto:
+    manifest_entered = await multi_input_dialog(
+      title=TITLE,
+      text="Please enter the following information:",
+      fields=[
+        FieldDef(key="name", name="Name", default=manifest.name),
+        FieldDef(key="version", name="Version", default=manifest.version),
+        FieldDef(key="author", name="Author", default=manifest.author),
+        FieldDef(key="mc_version", name="Minecraft Version", default=manifest.mc_version),
+        FieldDef(key="loader_id", name="Loader", default=manifest.loader_id),
+      ],
+      style=STYLE,
+    ).run_async()
 
-  if manifest_entered is None:
-    return
-  
-  for key in manifest_entered:
-    setattr(manifest, key, manifest_entered[key])
+    if manifest_entered is None:
+      return
+    
+    for key in manifest_entered:
+      setattr(manifest, key, manifest_entered[key])
 
   if not manifest.to_dict():
-    await message("Missing required fields for manifest.")
-    return
+    if not auto:
+      await message("Missing required fields for manifest.")
+    else:
+      print("Missing required fields for manifest, could not infer.")
+    return True
   
   current_overrides = Path().glob('**/*')
   if Path(".packignore").exists():
@@ -309,13 +317,14 @@ async def package():
 
   current_overrides = [str(file) for file in current_overrides]
 
-  if not await scrollable_text_dialog(
-    title=TITLE,
-    text="These files are going to be added to the overrides (inferred from .packignore)\nPlease review them to be included in the modpack:",
-    scrollable="\n".join(current_overrides),
-    style=STYLE
-  ).run_async():
-    return
+  if not auto:
+    if not await scrollable_text_dialog(
+      title=TITLE,
+      text="These files are going to be added to the overrides (inferred from .packignore)\nPlease review them to be included in the modpack:",
+      scrollable="\n".join(current_overrides),
+      style=STYLE
+    ).run_async():
+      return
 
   def ensure_key(dictionary, key):
     return key in dictionary
@@ -332,12 +341,15 @@ async def package():
   for i, file in enumerate(index_dir):
     index = toml.load(f"mods/.index/{file}")
     if not ensure_key(index, "name") or not ensure_key(index, "download") or not ensure_key(index["download"], "mode"):
+      print(f"Malformed index file: {file}")
       continue
 
     if not index["download"]["mode"] == "metadata:curseforge":
+      print(f"Unsupported download mode for {index['name']} ({file}): {index['download']['mode']}")
       continue
 
     if not ensure_key(index, "update") or not ensure_key(index["update"], "curseforge") or not ensure_key(index["update"]["curseforge"], "file-id") or not ensure_key(index["update"]["curseforge"], "project-id"):
+      print(f"Malformed index file for {index['name']}: {file}")
       continue
 
     mods.append({
@@ -348,19 +360,22 @@ async def package():
 
   mods = sorted(mods, key=lambda x: x["name"].lower())
 
-  selected_mods = await checkboxlist_dialog(
-    title=TITLE,
-    text="Please select the mods to include in the modpack:",
-    values=[(mod['projectID'], mod['name']) for mod in mods],
-    default_values=[mod['projectID'] for mod in mods if not mod['projectID'] in exclude_mods],
-    style=STYLE
-  ).run_async()
+  if not auto:
+    selected_mods = await checkboxlist_dialog(
+      title=TITLE,
+      text="Please select the mods to include in the modpack:",
+      values=[(mod['projectID'], mod['name']) for mod in mods],
+      default_values=[mod['projectID'] for mod in mods if not mod['projectID'] in exclude_mods],
+      style=STYLE
+    ).run_async()
 
-  selected_mods = [mod for mod in mods if mod['projectID'] in selected_mods]
+    selected_mods = [mod for mod in mods if mod['projectID'] in selected_mods]
 
-  if not selected_mods:
-    if confirm("No mods selected. Continue?"):
-      return
+    if not selected_mods:
+      if confirm("No mods selected. Continue?"):
+        return
+  else:
+    selected_mods = [mod for mod in mods if not mod['projectID'] in exclude_mods]
     
   manifest = manifest.to_dict()
   manifest["files"] = []
@@ -373,22 +388,26 @@ async def package():
     })
 
   zip_name = ""
-  while zip_name.strip() == "":
-    zip_name = await input_dialog(
-      title=TITLE,
-      text="Please enter the name of the zip file to save the modpack as:",
-      default=f"{manifest['name']} {manifest['version']}.zip",
-      style=STYLE
-    ).run_async()
+  
+  if not auto:
+    while zip_name.strip() == "":
+      zip_name = await input_dialog(
+        title=TITLE,
+        text="Please enter the name of the zip file to save the modpack as:",
+        default=f"{manifest['name']} {manifest['version']}.zip",
+        style=STYLE
+      ).run_async()
 
-    if zip_name is None:
-      return
-    
-    if not zip_name.endswith(".zip"):
-      zip_name += ".zip"
+      if zip_name is None:
+        return
+      
+      if not zip_name.endswith(".zip"):
+        zip_name += ".zip"
 
-    if zip_name.strip() == "":
-      await message("Invalid zip name, please enter a valid name.")
+      if zip_name.strip() == "":
+        await message("Invalid zip name, please enter a valid name.")
+  else:
+    zip_name = f"{manifest['name']} {manifest['version']}.zip"
 
   with zipfile.ZipFile(zip_name, 'w') as zipf:
     for file in current_overrides:
@@ -396,7 +415,12 @@ async def package():
 
     zipf.writestr("manifest.json", json.dumps(manifest, indent=2))
   
-  await message(f"Modpack saved as {zip_name}")
+  if not auto:
+    await message(f"Modpack saved as {zip_name}")
+  else:
+    print(f"Modpack saved as {zip_name}")
+
+  return False
   
   
     
@@ -418,6 +442,32 @@ async def chdir():
   print(f"Changing directory to {new_dir}")
   os.chdir(new_dir)
 
+
+def autopackage():
+  args = os.sys.argv[1:]
+
+  dir = args[1] if len(args) > 1 else "."
+
+  if not os.path.exists(dir):
+    print(f"The directory \"{dir}\" does not exist.")
+    return False
+  
+  if not os.path.isdir(dir):
+    print(f"The path \"{dir}\" is not a directory.")
+  
+  print(f"Changing directory to {dir}")
+  os.chdir(dir)
+  
+  return asyncio.run(package(auto=True))
+
 if __name__ == "__main__":
-  asyncio.run(main())
-  input("Press Enter to exit...")
+  args = os.sys.argv[1:]
+
+  if len(args) > 0:
+    if args[0] == "autopackage":
+      if autopackage():
+        print("Failed to autopackage.")
+        os.sys.exit(1)
+  else:
+    asyncio.run(main())
+    input("Press Enter to exit...")
